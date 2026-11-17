@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -19,7 +19,7 @@ model Tray {
   trayType        String           @default("EXHIBIDO")  // EXHIBIDO or PROVEEDOR
   supplierName    String?
   supplierPhone   String?
-  purchasePrice   Float?
+  purchasePrice   Decimal?         @db.DoublePrecision
   purchaseDate    DateTime?
   purchaseNotes   String?
   createdAt       DateTime         @default(now())
@@ -78,7 +78,7 @@ model Sale {
   trayId          String
   goldWeightCg    Int
   goldType        String           // ITALIANO or NACIONAL
-  amount          Float
+  amount          Decimal          @db.DoublePrecision
   operator        String
   notes           String?
   createdAt       DateTime         @default(now())
@@ -94,7 +94,7 @@ model Payment {
   id              String           @id @default(uuid())
   saleId          String
   method          String           // CASH, TRANSFER, CARD, CREDIT, MIXED
-  amount          Float
+  amount          Decimal          @db.DoublePrecision
   status          String           @default("PENDING")
   transactionId   String?
   bankAccountId   String?
@@ -129,11 +129,11 @@ model BankAccount {
 model DailyReconciliation {
   id              String           @id @default(uuid())
   date            DateTime         @unique
-  totalSales      Float            @default(0)
-  cashTotal       Float            @default(0)
-  transferTotal   Float            @default(0)
-  cardTotal       Float            @default(0)
-  creditTotal     Float            @default(0)
+  totalSales      Decimal          @default(0) @db.DoublePrecision
+  cashTotal       Decimal          @default(0) @db.DoublePrecision
+  transferTotal   Decimal          @default(0) @db.DoublePrecision
+  cardTotal       Decimal          @default(0) @db.DoublePrecision
+  creditTotal     Decimal          @default(0) @db.DoublePrecision
   discrepancies   String?
   status          String           @default("OPEN")
   closedBy        String?

@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import path from 'path';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -20,6 +21,20 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 app.use(captureOperator);
+
+// Serve frontend static files in production
+// The frontend build output is copied to backend/dist/frontend during deployment
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '../frontend');
+  app.use(express.static(frontendPath));
+
+  // Serve index.html for all non-API routes (SPA fallback)
+  app.get('*', (req: Request, res: Response) => {
+    if (!req.originalUrl.startsWith('/api')) {
+      res.sendFile(path.join(frontendPath, 'index.html'));
+    }
+  });
+}
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {

@@ -1,4 +1,5 @@
 // Redis is optional - falls back to no-op if not available
+// Supports both host/port format (local) and URL format (Upstash, Render, etc.)
 import Redis from 'ioredis';
 
 let redis: Redis | null = null;
@@ -9,12 +10,10 @@ export function getRedisClient(): Redis | null {
     return redisAvailable ? redis : null;
   }
   try {
-    redis = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD || undefined,
+    // Support REDIS_URL format (Upstash, Render, etc.) or host/port format (local)
+    const redisOptions: any = {
       lazyConnect: true,
-      retryStrategy: (times) => {
+      retryStrategy: (times: number) => {
         if (times > 3) {
           redisAvailable = false;
           return null;
@@ -22,7 +21,20 @@ export function getRedisClient(): Redis | null {
         return Math.min(times * 50, 2000);
       },
       maxRetriesPerRequest: 1,
-    });
+    };
+
+    // If REDIS_URL is provided (Upstash, Render, etc.), use it directly
+    if (process.env.REDIS_URL) {
+      redis = new Redis(process.env.REDIS_URL, redisOptions);
+    } else {
+      // Fallback to host/port format (local development)
+      redis = new Redis({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        password: process.env.REDIS_PASSWORD || undefined,
+        ...redisOptions,
+      });
+    }
 
     redis.on('error', (err) => {
       console.warn('Redis error:', err.message);
