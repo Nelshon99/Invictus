@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Tray {
+  id              String           @id @default(uuid())
+  code            String           @unique
+  name            String
+  goldType        String           // ITALIANO or NACIONAL
+  trayWeightCg    Int              @default(0)
+  goldWeightCg    Int              @default(0)
+  pieceCount      Int              @default(0)
+  status          String           @default("ACTIVE")
+  trayType        String           @default("EXHIBIDO")  // EXHIBIDO or PROVEEDOR
+  supplierName    String?
+  supplierPhone   String?
+  purchasePrice   Float?
+  purchaseDate    DateTime?
+  purchaseNotes   String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  weighings       Weighing[]
+  movements       InventoryMovement[]
+  sales           Sale[]
+  transfersOut    Transfer[]       @relation("TransferSource")
+  transfersIn     Transfer[]       @relation("TransferDestination")
+}
+
+model Weighing {
+  id              String           @id @default(uuid())
+  trayId          String
+  type            String           // OPENING or CLOSING
+  totalWeightCg   Int
+  trayWeightCg    Int
+  goldWeightCg    Int
+  pieceCount      Int
+  operator        String
+  notes           String?
+  previousGoldWeightCg Int         @default(0)  // peso de oro del pesaje anterior para comparacion
+  differenceCg    Int              @default(0)  // diferencia con el pesaje anterior
+  withinTolerance Boolean          @default(true) // si la diferencia esta dentro del margen
+  createdAt       DateTime         @default(now())
+  
+  tray            Tray             @relation(fields: [trayId], references: [id])
+
+  @@index([trayId, type])
+  @@index([trayId, createdAt])
+  @@index([createdAt])
+}
+
+model InventoryMovement {
+  id              String           @id @default(uuid())
+  trayId          String
+  type            String           // SALE, ADJUSTMENT, TRANSFER, WEIGHING
+  previousWeightCg Int
+  newWeightCg     Int
+  differenceCg    Int
+  reason          String
+  referenceId     String?
+  operator        String
+  createdAt       DateTime         @default(now())
+  
+  tray            Tray             @relation(fields: [trayId], references: [id])
+
+  @@index([trayId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model Sale {
+  id              String           @id @default(uuid())
+  trayId          String
+  goldWeightCg    Int
+  goldType        String           // ITALIANO or NACIONAL
+  amount          Float
+  operator        String
+  notes           String?
+  createdAt       DateTime         @default(now())
+  
+  tray            Tray             @relation(fields: [trayId], references: [id])
+  payments        Payment[]
+
+  @@index([trayId])
+  @@index([createdAt])
+}
+
+model Payment {
+  id              String           @id @default(uuid())
+  saleId          String
+  method          String           // CASH, TRANSFER, CARD, CREDIT, MIXED
+  amount          Float
+  status          String           @default("PENDING")
+  transactionId   String?
+  bankAccountId   String?
+  notes           String?
+  createdAt       DateTime         @default(now())
+  
+  sale            Sale             @relation(fields: [saleId], references: [id])
+  bankAccount     BankAccount?     @relation(fields: [bankAccountId], references: [id])
+
+  @@index([saleId])
+  @@index([method])
+  @@index([bankAccountId])
+}
+
+model BankAccount {
+  id              String           @id @default(uuid())
+  name            String
+  bankName        String
+  accountNumber   String
+  accountType     String           // CORRIENTE, AHORROS, NEGOCIOS
+  status          String           @default("ACTIVE")
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  payments        Payment[]
+
+  @@unique([bankName, accountNumber])
+  @@index([status])
+}
+
+model DailyReconciliation {
+  id              String           @id @default(uuid())
+  date            DateTime         @unique
+  totalSales      Float            @default(0)
+  cashTotal       Float            @default(0)
+  transferTotal   Float            @default(0)
+  cardTotal       Float            @default(0)
+  creditTotal     Float            @default(0)
+  discrepancies   String?
+  status          String           @default("OPEN")
+  closedBy        String?
+  closedAt        DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model AuditLog {
+  id              String           @id @default(uuid())
+  action          String
+  entity          String
+  entityId        String?
+  details         String?
+  operator        String
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime         @default(now())
+
+  @@index([entity, entityId])
+  @@index([operator])
+  @@index([createdAt])
+}
+
+model Transfer {
+  id                  String           @id @default(uuid())
+  code                String           @unique
+  sourceTrayId        String
+  destinationTrayId   String
+  pieces              Int
+  gramsCg             Int
+  goldType            String           // ITALIANO or NACIONAL
+  operator            String
+  notes               String?
+  createdAt           DateTime         @default(now())
+  
+  sourceTray          Tray             @relation("TransferSource", fields: [sourceTrayId], references: [id])
+  destinationTray     Tray             @relation("TransferDestination", fields: [destinationTrayId], references: [id])
+
+  @@index([sourceTrayId])
+  @@index([destinationTrayId])
+  @@index([goldType])
+  @@index([createdAt])
+}

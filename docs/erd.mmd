@@ -1,0 +1,97 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#FFD700', 'primaryBorderColor': '#B8860B', 'primaryTextColor': '#333', 'lineColor': '#B8860B', 'secondaryColor': '#FFF8DC', 'tertiaryColor': '#F5DEB3', 'fontFamily': 'Segoe UI, sans-serif' }}}%%
+
+erDiagram
+
+    Tray {
+        String id PK
+        String code "UNIQUE"
+        String name
+        String goldType "ITALIANO / NACIONAL"
+        Int trayWeightCg "peso bandeja (cg)"
+        Int goldWeightCg "peso oro (cg)"
+        Int pieceCount
+        String status "ACTIVE / INACTIVE"
+        DateTime createdAt
+        DateTime updatedAt
+    }
+
+    Weighing {
+        String id PK
+        String trayId FK
+        String type "OPENING / CLOSING"
+        Int totalWeightCg
+        Int trayWeightCg
+        Int goldWeightCg
+        Int pieceCount
+        String operator
+        String notes
+        DateTime createdAt
+    }
+
+    InventoryMovement {
+        String id PK
+        String trayId FK
+        String type "SALE / ADJUSTMENT / TRANSFER / WEIGHING"
+        Int previousWeightCg
+        Int newWeightCg
+        Int differenceCg
+        String reason
+        String referenceId
+        String operator
+        DateTime createdAt
+    }
+
+    Sale {
+        String id PK
+        String trayId FK
+        Int goldWeightCg
+        String goldType "ITALIANO / NACIONAL"
+        Float amount
+        String operator
+        String notes
+        DateTime createdAt
+    }
+
+    Payment {
+        String id PK
+        String saleId FK
+        String method "CASH / TRANSFER / CARD / CREDIT / MIXED"
+        Float amount
+        String status "PENDING / COMPLETED / FAILED"
+        String transactionId
+        String notes
+        DateTime createdAt
+    }
+
+    DailyReconciliation {
+        String id PK
+        DateTime date "UNIQUE"
+        Float totalSales
+        Float cashTotal
+        Float transferTotal
+        Float cardTotal
+        Float creditTotal
+        String discrepancies
+        String status "OPEN / CLOSED"
+        String closedBy
+        DateTime closedAt
+        DateTime createdAt
+        DateTime updatedAt
+    }
+
+    AuditLog {
+        String id PK
+        String action
+        String entity
+        String entityId
+        String details
+        String operator
+        String ipAddress
+        String userAgent
+        DateTime createdAt
+    }
+
+    Tray ||--o{ Weighing : "tiene"
+    Tray ||--o{ InventoryMovement : "registra"
+    Tray ||--o{ Sale : "vende desde"
+    Sale ||--o{ Payment : "recibe"
