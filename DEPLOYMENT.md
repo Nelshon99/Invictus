@@ -1,28 +1,24 @@
-# Guía de Despliegue — Invictus en Supabase + Koyeb + Vercel
+# Guía de Despliegue — Invictus
 
-Esta guía explica cómo desplegar el sistema de inventario Invictus en plataformas gratuitas.
+Esta guía explica cómo desplegar el sistema de inventario Invictus en producción.
 
-## Arquitectura del despliegue
+## Estado actual del código
 
-| Componente | Plataforma | URL |
-|---|---|---|
-| **Base de datos PostgreSQL** | [Supabase](https://supabase.com) (gratis 500 MB) | `db.XX.supabase.co` |
-| **Redis (caché)** | [Upstash](https://upstash.com) (gratis 10,000 comandos/día) | `XX.upstash.io` |
-| **Backend (API)** | [Koyeb](https://koyeb.com) (gratis, siempre encendido) | `invictus-backend-XX.koyeb.app` |
-| **Frontend (UI)** | [Vercel](https://vercel.com) (gratis, CDN global) | `invictus-frontend.vercel.app` |
+El código está **preparado para producción** con las siguientes características:
 
----
+- **Dos schemas de Prisma**: SQLite para desarrollo local, PostgreSQL para producción
+- **Redis opcional**: El backend funciona con o sin caché
+- **Frontend servido por el backend**: En producción, el backend sirve los archivos estáticos del frontend
+- **Variables de entorno**: Todas configurables vía `.env`
 
 ## Esquemas de base de datos
-
-El proyecto usa **dos schemas de Prisma** para soportar desarrollo local y producción:
 
 | Entorno | Schema | Base de datos | Archivo |
 |---|---|---|---|
 | **Desarrollo** | `schema.dev.prisma` | SQLite (local) | `backend/prisma/dev.db` |
-| **Producción** | `schema.prisma` | PostgreSQL (Supabase) | URL de conexión |
+| **Producción** | `schema.prisma` | PostgreSQL | URL de conexión |
 
-Los scripts de `package.json` usan el schema automáticamente:
+Scripts de `package.json`:
 - `npm run prisma:generate` → genera el cliente con SQLite (desarrollo)
 - `npm run prisma:migrate` → migra la BD de SQLite (desarrollo)
 - `npm run prisma:deploy` → migra la BD de PostgreSQL (producción)
@@ -30,121 +26,131 @@ Los scripts de `package.json` usan el schema automáticamente:
 
 ---
 
-## Paso 1: Crear base de datos en Supabase
+## Plataformas recomendadas
+
+El proyecto requiere una plataforma que **instale todas las dependencias** (incluyendo `devDependencies` como TypeScript y `@types/*`) durante el build.
+
+### ✅ Plataformas compatibles
+
+| Plataforma | Backend | PostgreSQL | Redis | Notas |
+|---|---|---|---|---|
+| **Railway** | ✅ | ✅ | ✅ | Instala todas las dependencias. $5 crédito gratis/mes. Requiere tarjeta. |
+| **Fly.io** | ✅ | ✅ | ❌ | $5 crédito gratis. Requiere tarjeta. |
+| **VPS (DigitalOcean, Hetzner)** | ✅ | ✅ | ✅ | Control total. ~$5-10/mes. |
+
+### ❌ Plataformas no compatibles
+
+| Plataforma | Problema |
+|---|---|
+| **Render** | No instala `devDependencies` en producción. TypeScript necesita `@types/*` para compilar. |
+
+---
+
+## Despliegue en Railway (recomendado)
+
+Railway es la opción más simple porque instala todas las dependencias automáticamente.
+
+### Paso 1: Crear base de datos en Supabase
 
 1. Ve a [https://supabase.com](https://supabase.com) y crea una cuenta gratuita
-2. Crea un nuevo proyecto:
-   - **Name**: `Invictus`
-   - **Database Password**: Elige una contraseña segura (guárdala)
-   - **Region**: Elige la más cercana (ej. `South America (Buenos Aires)`)
-3. Una vez creado, ve a **Project Settings → Database**
-4. Copia la **Connection string** (Direct mode), se ve así:
+2. Crea un proyecto: **Name**: `Invictus`, elige región cercana
+3. Ve a **Project Settings → Database**
+4. Copia la **Connection string** (Direct mode):
    ```
-   postgresql://postgres.[project-ref]:YOUR_PASSWORD@db.[project-ref].supabase.co:5432/postgres
+   postgresql://postgres.[ref]:PASSWORD@db.[ref].supabase.co:5432/postgres
    ```
 
----
+### Paso 2: Crear Redis en Upstash (opcional)
 
-## Paso 2: Crear Redis en Upstash
-
-1. Ve a [https://upstash.com](https://upstash.com) y crea una cuenta gratuita
-2. Click en **Create Database**:
-   - **Name**: `invictus-redis`
-   - **Region**: Elige la más cercana a Koyeb (ej. `Falkenstein, DE` o `Frankfurt`)
-3. Una vez creado, ve a la pestaña **CLI URL** y copia la URL:
+1. Ve a [https://upstash.com](https://upstash.com) y crea una cuenta
+2. Crea una base de datos Redis
+3. Copia la **CLI URL**:
    ```
-   redis://default:YOUR_PASSWORD@XX.upstash.io:6379
+   redis://default:PASSWORD@host.upstash.io:6379
    ```
 
----
+### Paso 3: Desplegar en Railway
 
-## Paso 3: Desplegar el Backend en Koyeb
-
-### Opción A: Desde GitHub (recomendado)
-
-1. Ve a [https://app.koyeb.com](https://app.koyeb.com) y crea una cuenta
-2. Conecta tu repositorio de GitHub (`Nelshon99/Invictus`)
-3. Crea un nuevo servicio:
-   - **Name**: `invictus-backend`
-   - **Git provider**: GitHub
-   - **Repository**: `Nelshon99/Invictus`
-   - **Branch**: `main`
-   - **Build command**: `cd backend && npm ci && npm run build && npm run deploy`
-   - **Run command**: `cd backend && npm start`
-   - **Dockerfile**: No (usar build presets)
-
-### Variables de entorno en Koyeb
-
-En la sección **Environment variables** del servicio, agrega:
+1. Ve a [https://railway.app](https://railway.app) y crea una cuenta
+2. **New Project** → **Deploy from GitHub repo**
+3. Selecciona `Nelshon99/Invictus`
+4. Railway detectará automáticamente Node.js
+5. Configura las variables de entorno:
 
 | Variable | Valor |
 |---|---|
 | `NODE_ENV` | `production` |
 | `PORT` | `8080` |
-| `DATABASE_URL` | `(tu URL de Supabase del paso 1)` |
-| `REDIS_URL` | `(tu URL de Upstash del paso 2)` |
-| `JWT_SECRET` | `(genera una clave aleatoria, ej. con `openssl rand -base64 32`))` |
+| `DATABASE_URL` | `(tu URL de Supabase)` |
+| `REDIS_URL` | `(tu URL de Upstash, opcional)` |
+| `JWT_SECRET` | `(clave aleatoria, ej. `openssl rand -base64 32`)` |
 | `JWT_EXPIRES_IN` | `24h` |
 | `LOG_LEVEL` | `info` |
 | `WEIGHING_TOLERANCE_CG` | `50` |
 
-### Exponer el servicio
+6. Configura el build:
+   - **Root Directory**: `backend`
+   - **Build Command**: `npm install && npm run build && npm run deploy`
+   - **Start Command**: `npm start`
 
-- En **Instances → Ingress**, activa **Publicly exposed**
-- Puerto: `8080`
-- Koyeb te asignará una URL como `invictus-backend-XX.koyeb.app`
+### Paso 4: Desplegar el Frontend en Vercel
 
----
-
-## Paso 4: Desplegar el Frontend en Vercel
-
-### Opción A: Desde GitHub (recomendado)
-
-1. Ve a [https://vercel.com](https://vercel.com) y crea una cuenta
-2. Click en **Add New → Project**
-3. Importa `Nelshon99/Invictus` desde GitHub
-4. Configura el proyecto:
+1. Ve a [https://vercel.com](https://vercel.com)
+2. **Add New → Project** → Importa `Nelshon99/Invictus`
+3. Configura:
    - **Framework Preset**: Vite
    - **Root Directory**: `frontend`
    - **Build Command**: `npm run build`
    - **Output Directory**: `dist`
-
-### Variables de entorno en Vercel
-
-| Variable | Valor |
-|---|---|
-| `VITE_API_URL` | `https://invictus-backend-XX.koyeb.app` (sin `/api/v1`) |
-
-El frontend ya incluye `vercel.json` que reescribe `/api/v1/*` automáticamente. Solo necesitas configurar la variable `VITE_API_URL` con la URL de tu backend en Koyeb.
+4. Variable de entorno:
+   - `VITE_API_URL`: `https://tu-servicio.railway.app`
 
 ---
 
-## Paso 5: Migrar la base de datos
+## Despliegue en VPS
 
-Después de desplegar el backend en Koyeb, ejecuta las migraciones:
-
-```bash
-# En tu máquina local, apunta a la BD de Supabase
-cd backend
-npx prisma migrate deploy --schema=./prisma/schema.prisma
-```
-
-O desde el panel de Koyeb, ejecuta un **command instance** una vez:
+Para un VPS (DigitalOcean, Hetzner, etc.):
 
 ```bash
-cd backend && npx prisma migrate deploy
+# Clonar el repositorio
+git clone git@github.com:Nelshon99/Invictus.git
+cd Invictus
+
+# Instalar dependencias
+cd backend && npm install
+cd ../frontend && npm install && npm run build
+cd ..
+
+# Configurar variables de entorno
+cp backend/.env.example backend/.env
+# Editar backend/.env con tus valores
+
+# Generar Prisma y migrar BD
+cd backend && npm run deploy
+
+# Iniciar con PM2 (ejemplo)
+npm install -g pm2
+pm2 start npm --name "invictus-backend" -- start
+pm2 save
+pm2 startup
 ```
 
 ---
 
-## Resumen de URLs después del despliegue
+## Variables de entorno requeridas
 
-| Servicio | URL de ejemplo |
-|---|---|
-| **Frontend (UI)** | `https://invictus-frontend.vercel.app` |
-| **Backend (API)** | `https://invictus-backend-XX.koyeb.app/api/v1` |
-| **Supabase (BD)** | Panel en `https://supabase.com/dashboard` |
-| **Upstash (Redis)** | Panel en `https://console.upstash.com` |
+| Variable | Requerida | Descripción |
+|---|---|---|
+| `DATABASE_URL` | ✅ | URL de PostgreSQL (Supabase, Neon, etc.) |
+| `JWT_SECRET` | ✅ | Clave secreta para tokens JWT |
+| `PORT` | ✅ | Puerto del servidor (8080 en producción) |
+| `NODE_ENV` | ✅ | `production` |
+| `REDIS_URL` | ❌ | URL de Redis (Upstash). Opcional, el backend funciona sin caché. |
+| `REDIS_HOST` | ❌ | Host de Redis (alternativa a REDIS_URL) |
+| `REDIS_PORT` | ❌ | Puerto de Redis (alternativa a REDIS_URL) |
+| `JWT_EXPIRES_IN` | ❌ | Duración del token JWT (default: `24h`) |
+| `LOG_LEVEL` | ❌ | Nivel de logs (default: `info`) |
+| `WEIGHING_TOLERANCE_CG` | ❌ | Tolerancia de pesaje en centigramos (default: `50` = ±0.50g) |
 
 ---
 
@@ -154,22 +160,22 @@ cd backend && npx prisma migrate deploy
 |---|---|---|
 | Supabase | Free | $0 (500 MB BD) |
 | Upstash | Free | $0 (10,000 comandos/día) |
-| Koyeb | Free | $0 (0.1 CPU, 512 MB RAM) |
+| Railway | Free tier | $5 crédito gratis/mes |
 | Vercel | Hobby | $0 (CDN ilimitado) |
-| **Total** | | **$0/mes** |
+| **Total** | | **$0-5/mes** |
 
 ---
 
 ## Solución de problemas
 
 ### El backend no se conecta a Supabase
-- Verifica que la IP de Koyeb esté en la lista blanca de Supabase (Project Settings → Database → Network)
-- Usa la conexión string **Direct** (no Pooler) en `DATABASE_URL`
+- Verifica que la conexión string use el modo **Direct** (no Pooler)
+- En Supabase, verifica que no haya restricciones de IP
 
 ### Redis no se conecta
-- Verifica que la URL de Upstash incluya el usuario `default` y la contraseña
+- El backend funciona sin Redis. Si no configuras Redis, simplemente omite `REDIS_URL`
 - Formato correcto: `redis://default:PASSWORD@host:6379`
 
 ### El frontend no puede conectar con el backend
-- Verifica que `VITE_API_URL` en Vercel apunte a la URL correcta de Koyeb
-- Si usas `vercel.json` rewrites, asegúrate de que el backend tenga CORS habilitado
+- Verifica que `VITE_API_URL` en Vercel apunte a la URL correcta del backend
+- El backend tiene CORS habilitado por defecto
